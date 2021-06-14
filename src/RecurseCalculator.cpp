@@ -9,20 +9,23 @@ using std::sqrt;
 using std::log;
 using std::map;
 
+// Use wrapper object to handle pairs consisting of X and Y coordinate.
+using Point = std::pair<double, double>;
+
 const Datetime NA_DATETIME(1.0 / 0.0); // Create NaN by dividing by 0
 
-// Euklidean distance of points (x1, y1) and (x2, y2).
-double dist(double x1, double y1, double x2, double y2)
+// Euklidean distance of points `a` and `b`.
+double dist(const Point& a, const Point& b)
 {
-	double dist = pow(x1 - x2, 2.0) + pow(y1 - y2, 2.0);
-	dist = sqrt(dist); // ignore Rstudio that call to sqrt is ambiguous
-	return dist;
+	double dX = a.first - b.first;
+	double dY = a.second - b.second;
+	return sqrt(dX * dX + dY * dY); // ignore Rstudio that call to sqrt is ambiguous
 }
 
-// Checks whether (x1, y1) is within the radius of (x2, y2).
-bool isInside(double x1, double y1, double x2, double y2, double radius)
+// Checks whether `a` is within `radius` of `b`.
+bool isInside(const Point& a, const Point& b, double radius)
 {
-	return dist(x1, y1, x2, y2) <= radius;
+	return dist(a, b) <= radius;
 }
 
 // [[Rcpp::export]]
@@ -176,6 +179,12 @@ List getRecursionsCpp(NumericVector trajX, NumericVector trajY,
     std::vector<double> statsTimeSinceLastVisit(currStatSize);
     int statsIdx = -1; // will get incremented before first write
     
+	// Used to check the start of every location.
+	const Point firstTraj = std::make_pair(trajX[0], trajY[0]);
+	
+	// Reuse wrapper objects instead of creating a new one in every iteration.
+	Point currentLoc;
+	Point currentTraj;
 	
 	// for each location, calculate
 	for (int i = 0; i < nLoc; i++)
@@ -185,8 +194,12 @@ List getRecursionsCpp(NumericVector trajX, NumericVector trajY,
 		
 		double residenceTime = 0;
 		
+		// The current location to check against.
+		currentLoc.first = locX[i];
+		currentLoc.second = locY[i];
+		
 		// reset variables for new location
-		stillInside = isInside(trajX[0], trajY[0], locX[i], locY[i], radius); // start with animal inside radius?
+		stillInside = isInside(firstTraj, currentLoc, radius); // start with animal inside radius?
 		appendToPreviousRevisit = FALSE;
 		radiusEntranceTime = (stillInside) ? (Rcpp::Datetime)trajT[0] : NA_DATETIME;
 		radiusExitTime = NA_DATETIME;
@@ -196,7 +209,9 @@ List getRecursionsCpp(NumericVector trajX, NumericVector trajY,
 		for (int j = 0; j < nTraj; j++) 
 		{
 			// Whether the current trajectory point is inside the location's radius.
-			bool nowInside = isInside(trajX[j], trajY[j], locX[i], locY[i], radius);
+			currentTraj.first = trajX[j];
+			currentTraj.second = trajY[j];
+			bool nowInside = isInside(currentTraj, currentLoc, radius);
 			
 			if (isNewTrack[j])
 			{

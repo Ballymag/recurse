@@ -11,6 +11,7 @@ using std::map;
 
 const Datetime NA_DATETIME(1.0 / 0.0); // Create NaN by dividing by 0
 
+// Euklidean distance of points (x1, y1) and (x2, y2).
 double dist(double x1, double y1, double x2, double y2)
 {
 	double dist = pow(x1 - x2, 2.0) + pow(y1 - y2, 2.0);
@@ -18,21 +19,10 @@ double dist(double x1, double y1, double x2, double y2)
 	return dist;
 }
 
-NumericMatrix dist(NumericVector x1, NumericVector y1, NumericVector x2, NumericVector y2)
+// Checks whether (x1, y1) is within the radius of (x2, y2).
+bool isInside(double x1, double y1, double x2, double y2, double radius)
 {
-	int outrows = x1.size();
-	int outcols = x2.size();
-	NumericMatrix out(outrows,outcols);
-	
-	for (int i = 0; i < outrows; i++)
-	{
-		for (int j = 0; j < outcols; j++) 
-		{
-			double d = dist(x1[i], y1[i], x2[j], y2[j]);
-			out(i, j) = d;
-		}
-	}
-	return (out) ;
+	return dist(x1, y1, x2, y2) <= radius;
 }
 
 // [[Rcpp::export]]
@@ -161,8 +151,6 @@ List getRecursionsCpp(NumericVector trajX, NumericVector trajY,
 	
 	IntegerVector isNewTrack = getIsNewTrack(trajId); 
 	
-	NumericMatrix dists = dist(trajX, trajY, locX, locY);
-	
 	// store results
 	IntegerVector revisits(nLoc);
 	NumericVector rt(nLoc);
@@ -196,12 +184,9 @@ List getRecursionsCpp(NumericVector trajX, NumericVector trajY,
 		checkUserInterrupt();
 		
 		double residenceTime = 0;
-
-		// find relocations within radius (use column for loc i)
-		LogicalVector inRadius = (dists( _ , i) <= radius);
 		
 		// reset variables for new location
-		stillInside = inRadius[0]; // start with animal inside radius?
+		stillInside = isInside(trajX[0], trajY[0], locX[i], locY[i], radius); // start with animal inside radius?
 		appendToPreviousRevisit = FALSE;
 		radiusEntranceTime = (stillInside) ? (Rcpp::Datetime)trajT[0] : NA_DATETIME;
 		radiusExitTime = NA_DATETIME;
@@ -210,6 +195,9 @@ List getRecursionsCpp(NumericVector trajX, NumericVector trajY,
 			
 		for (int j = 0; j < nTraj; j++) 
 		{
+			// Whether the current trajectory point is inside the location's radius.
+			bool nowInside = isInside(trajX[j], trajY[j], locX[i], locY[i], radius);
+			
 			if (isNewTrack[j])
 			{
 				if (j != 0)
@@ -267,7 +255,7 @@ List getRecursionsCpp(NumericVector trajX, NumericVector trajY,
 				} // end if j = 0
 					
 				// reset variables for new trajectory
-				stillInside = inRadius[j]; // start with animal inside radius?
+				stillInside = nowInside; // start with animal inside radius?
 				appendToPreviousRevisit = FALSE;
 				radiusEntranceTime = (stillInside) ? (Rcpp::Datetime)trajT[j] : NA_DATETIME;
 				radiusExitTime = NA_DATETIME;
@@ -275,7 +263,7 @@ List getRecursionsCpp(NumericVector trajX, NumericVector trajY,
 			} // end if new track
 			else
 			{
-				if (!inRadius[j]) // is location outside radius?
+				if (!nowInside) // is location outside radius?
 				{
 					if (stillInside) 
 					{
@@ -438,7 +426,7 @@ List getRecursionsCpp(NumericVector trajX, NumericVector trajY,
                                       _["timeSinceLastVisit"] = wrap( statsTimeSinceLastVisit.begin(), statsTimeSinceLastVisit.begin() + statsIdx ));
 
 		results = List::create( _["revisits"] = revisits, _["residenceTime"] = rt,
-                          _["radius"] = radius, _["dists"] = dists, _["revisitStats"] = stats ) ;
+                          _["radius"] = radius, _["revisitStats"] = stats ) ;
 	}
 	else
 	{

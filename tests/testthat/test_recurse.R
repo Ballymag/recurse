@@ -40,13 +40,9 @@ expectedRevisistsRadius1 = c(2, 2, 3, 2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
 
 # points on a line so distances between are unit lengths
 simplePts = data.frame(x = 1, y = 1:5, t = createTimeVector(5), id = "A1")
-simplePtsDist = matrix(0, nrow = 5, ncol = 5)
-simplePtsDist =  abs(row(simplePtsDist) - col(simplePtsDist))
 
 # different locations than simplePts, but still x = 1 so with easy distances
 simpleLocs = data.frame(x = c(1, 1, 1), y = c(1, 0, 10))
-simpleLocsDist = matrix(0, nrow = 5, ncol = 3)
-simpleLocsDist = cbind(0:4, 1:5, 9:5)
 
 # two tracks, one vertical x = 1, one horizontal y = 3
 horzTrack = data.frame(x = -1:3, y = 3, t = createTimeVector(5), id = "B2")
@@ -76,12 +72,6 @@ test_that("correct number of revisits",
 		  	expect_equal(getRevisits(track, 1), expectedRevisistsRadius1)
 		  	
 		  	expect_equal(getRevisits(twoTracks, 0.5), rep(c(1, 1, 2, 1, 1), 2)) # middle pt overlaps
-		  })
-
-test_that("distance matrix",
-		  {
-		  	expect_equal(getRecursions(simplePts, 1, verbose = TRUE)$dists, simplePtsDist)
-		  	expect_equal(getRecursionsAtLocations(simplePts, simpleLocs, 1, verbose = TRUE)$dists, simpleLocsDist)
 		  })
 
 test_that("time in radius",

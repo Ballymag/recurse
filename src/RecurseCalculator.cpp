@@ -9,16 +9,20 @@ using std::sqrt;
 using std::log;
 using std::map;
 
-// Use wrapper object to handle pairs consisting of X and Y coordinate.
-using Point = std::pair<double, double>;
+// Use wrapper object to handle positions consisting of x and y coordinate.
+struct Point
+{
+	double x;
+	double y;
+};
 
 const Datetime NA_DATETIME(1.0 / 0.0); // Create NaN by dividing by 0
 
-// Euklidean distance of points `a` and `b`.
+// Euclidean distance of points `a` and `b`.
 double dist(const Point& a, const Point& b)
 {
-	double dX = a.first - b.first;
-	double dY = a.second - b.second;
+	double dX = a.x - b.x;
+	double dY = a.y - b.y;
 	return sqrt(dX * dX + dY * dY); // ignore Rstudio that call to sqrt is ambiguous
 }
 
@@ -180,11 +184,7 @@ List getRecursionsCpp(NumericVector trajX, NumericVector trajY,
     int statsIdx = -1; // will get incremented before first write
     
 	// Used to check the start of every location.
-	const Point firstTraj = std::make_pair(trajX[0], trajY[0]);
-	
-	// Reuse wrapper objects instead of creating a new one in every iteration.
-	Point currentLoc;
-	Point currentTraj;
+	const Point firstTraj {trajX[0], trajY[0]};
 	
 	// for each location, calculate
 	for (int i = 0; i < nLoc; i++)
@@ -195,8 +195,7 @@ List getRecursionsCpp(NumericVector trajX, NumericVector trajY,
 		double residenceTime = 0;
 		
 		// The current location to check against.
-		currentLoc.first = locX[i];
-		currentLoc.second = locY[i];
+		Point currentLoc {locX[i], locY[i]};
 		
 		// reset variables for new location
 		stillInside = isInside(firstTraj, currentLoc, radius); // start with animal inside radius?
@@ -204,13 +203,13 @@ List getRecursionsCpp(NumericVector trajX, NumericVector trajY,
 		radiusEntranceTime = (stillInside) ? (Rcpp::Datetime)trajT[0] : NA_DATETIME;
 		radiusExitTime = NA_DATETIME;
 		timeSinceLastVisit = NA_REAL;
-		
 			
 		for (int j = 0; j < nTraj; j++) 
 		{
+			// Retrieve current trajectory position.
+			Point currentTraj {trajX[j], trajY[j]};
+
 			// Whether the current trajectory point is inside the location's radius.
-			currentTraj.first = trajX[j];
-			currentTraj.second = trajY[j];
 			bool nowInside = isInside(currentTraj, currentLoc, radius);
 			
 			if (isNewTrack[j])
@@ -256,9 +255,9 @@ List getRecursionsCpp(NumericVector trajX, NumericVector trajY,
 								}
 								
 								statsId[statsIdx] = trajId[j-1];
-								statsX[statsIdx] = locX[i];
-								statsY[statsIdx] = locY[i];
-								statsCoordIdx[statsIdx] = i + 1; // becase R vectors are 1-based
+								statsX[statsIdx] = currentLoc.x;
+								statsY[statsIdx] = currentLoc.y;
+								statsCoordIdx[statsIdx] = i + 1; // because R vectors are 1-based
 								statsVisitIdx[statsIdx] = revisits[i];
 								statsEntranceTime[statsIdx] = radiusEntranceTime;
 								statsExitTime[statsIdx] = radiusExitTime;
@@ -278,15 +277,18 @@ List getRecursionsCpp(NumericVector trajX, NumericVector trajY,
 			} // end if new track
 			else
 			{
+				// The previous trajectory position for crossing calculation.
+				Point previousTraj {trajX[j-1], trajY[j-1]};
+
 				if (!nowInside) // is location outside radius?
 				{
 					if (stillInside) 
 					{
 						// animal just moved outside
 						stillInside = FALSE;
-						double percentIn = calculateCrossingPercentage(locX[i], locY[i], 
-                                                     				  trajX[j-1], trajY[j-1],
-                                                                      trajX[j], trajY[j], radius);
+						double percentIn = calculateCrossingPercentage(currentLoc.x, currentLoc.y,
+						                                               previousTraj.x, previousTraj.y,
+						                                               currentTraj.x, currentTraj.y, radius);
 						radiusExitTime = trajT[j-1] + percentIn * (trajT[j] - trajT[j-1]);
 						double timeInside = radiusExitTime - radiusEntranceTime;
 						residenceTime += timeInside;
@@ -321,9 +323,9 @@ List getRecursionsCpp(NumericVector trajX, NumericVector trajY,
 								}
 								
 								statsId[statsIdx] = trajId[j];
-								statsX[statsIdx] = locX[i];
-								statsY[statsIdx] = locY[i];
-								statsCoordIdx[statsIdx] = i + 1; // becase R vectors are 1-based
+								statsX[statsIdx] = currentLoc.x;
+								statsY[statsIdx] = currentLoc.y;
+								statsCoordIdx[statsIdx] = i + 1; // because R vectors are 1-based
 								statsVisitIdx[statsIdx] = revisits[i];
 								statsEntranceTime[statsIdx] = radiusEntranceTime;
 								statsExitTime[statsIdx] = radiusExitTime;
@@ -339,9 +341,9 @@ List getRecursionsCpp(NumericVector trajX, NumericVector trajY,
 					{
 						// animal just moved inside
 						stillInside = TRUE;
-						double percentIn = calculateCrossingPercentage(locX[i], locY[i], 
-                                                     				  trajX[j], trajY[j],
-                                                                      trajX[j - 1], trajY[j - 1], radius);
+						double percentIn = calculateCrossingPercentage(currentLoc.x, currentLoc.y,
+						                                               currentTraj.x, currentTraj.y,
+						                                               previousTraj.x, previousTraj.y, radius);
 						radiusEntranceTime = (Rcpp::Datetime)trajT[j] - (Rcpp::Datetime)(percentIn * (trajT[j] - trajT[j-1]));
 						timeSinceLastVisit = radiusEntranceTime - radiusExitTime;
 
@@ -398,8 +400,8 @@ List getRecursionsCpp(NumericVector trajX, NumericVector trajY,
 					}
 					
 					statsId[statsIdx] = trajId[nTraj - 1]; // last one
-					statsX[statsIdx] = locX[i];
-					statsY[statsIdx] = locY[i];
+					statsX[statsIdx] = currentLoc.x;
+					statsY[statsIdx] = currentLoc.y;
 					statsCoordIdx[statsIdx] = i + 1; // becase R vectors are 1-based
 					statsVisitIdx[statsIdx] = revisits[i];
 					statsEntranceTime[statsIdx] = radiusEntranceTime;

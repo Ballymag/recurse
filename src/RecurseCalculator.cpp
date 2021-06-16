@@ -110,6 +110,14 @@ double calculateCrossingPercentage(double Cx, double Cy,
 //	END_RCPP
 }
 
+double calculateCrossingPercentage(const Point& C,
+                                   const Point& A,
+                                   const Point& B,
+                                   double R)
+{
+	return calculateCrossingPercentage(C.x, C.y, A.x, A.y, B.x, B.y, R);
+}
+
 // [[Rcpp::export]]
 IntegerVector getIsNewTrack(StringVector trajId)
 {
@@ -286,9 +294,9 @@ List getRecursionsCpp(NumericVector trajX, NumericVector trajY,
 					{
 						// animal just moved outside
 						stillInside = FALSE;
-						double percentIn = calculateCrossingPercentage(currentLoc.x, currentLoc.y,
-						                                               previousTraj.x, previousTraj.y,
-						                                               currentTraj.x, currentTraj.y, radius);
+						double percentIn = calculateCrossingPercentage(currentLoc,
+						                                               previousTraj,
+						                                               currentTraj, radius);
 						radiusExitTime = trajT[j-1] + percentIn * (trajT[j] - trajT[j-1]);
 						double timeInside = radiusExitTime - radiusEntranceTime;
 						residenceTime += timeInside;
@@ -341,9 +349,9 @@ List getRecursionsCpp(NumericVector trajX, NumericVector trajY,
 					{
 						// animal just moved inside
 						stillInside = TRUE;
-						double percentIn = calculateCrossingPercentage(currentLoc.x, currentLoc.y,
-						                                               currentTraj.x, currentTraj.y,
-						                                               previousTraj.x, previousTraj.y, radius);
+						double percentIn = calculateCrossingPercentage(currentLoc,
+						                                               currentTraj,
+						                                               previousTraj, radius);
 						radiusEntranceTime = (Rcpp::Datetime)trajT[j] - (Rcpp::Datetime)(percentIn * (trajT[j] - trajT[j-1]));
 						timeSinceLastVisit = radiusEntranceTime - radiusExitTime;
 
